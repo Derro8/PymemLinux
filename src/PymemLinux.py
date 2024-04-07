@@ -1,6 +1,14 @@
 import os
 import memory
 
+class Module:
+    def __init__(self, path=None, base_address=None, end_address=None):
+        self.path = path
+        self.name = os.path.basename(path)
+        self.base_address = base_address
+        self.end_address = end_address
+        self.size = end_address - base_address
+
 class PymemLinux:
     def __init__(self, process_name=None):
         self.process_id = -1
@@ -19,6 +27,40 @@ class PymemLinux:
 
     def open_process_from_id(self, id):
         self.process_id = id
+
+    def find_modules(self, name=None, return_multiple=True) -> list[Module] | Module:
+        if not self.process_id:
+            raise Exception("You must open a process before calling this method")
+        
+        separator = "                       "
+
+        modules = []
+
+        for l in open(f"/proc/{self.process_id}/maps"):
+            if not separator in l:
+                continue
+
+            info, path = l.split(separator)
+
+            if path[-2:] == "]\n":
+                continue
+
+            base_address, end_address = info.split(" ")[0].split("-")
+
+            module = Module(path[:-1], int("0x" + base_address, 0), int("0x" + end_address, 0))
+
+            if return_multiple:
+                modules.append(module)
+                continue
+
+            if name in path:
+                return module
+        
+        return modules
+    
+    def module(self, name):
+        return self.find_modules(name=name, return_multiple=False)
+
 
     def module_base(self, name):
         if not self.process_id:
